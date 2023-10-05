@@ -1,8 +1,27 @@
 "use client";
 
-import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Slider, VideoSlider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { Pause, Play, Volume, Volume2 } from "lucide-react";
+import {
+  FastForward,
+  Forward,
+  Fullscreen,
+  Pause,
+  Play,
+  Rewind,
+  Settings,
+  Volume2,
+  VolumeXIcon,
+} from "lucide-react";
 import {
   HTMLAttributes,
   PropsWithChildren,
@@ -25,6 +44,14 @@ export default function Home() {
 
 const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
   const ref = useRef<HTMLVideoElement>(null);
+  const videoPlayerContainerRef = useRef<HTMLDivElement>(null);
+
+  const [showControls, setShowControls] = useState(false);
+
+  const [mousePosition, setMousePosition] = useState({
+    x: 0,
+    y: 0,
+  });
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -56,8 +83,44 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
     const seconds = Math.round(video.duration - minutes * 60);
 
     return `${minutes}:${seconds}`;
-  }, [ref]);
+    // note: don't remove `ref.current.duration` from deps because
+    // otherwise this useMemo is not called once the ref is ready
+    // and the video duration stays at 00:00
+  }, [ref.current?.duration]);
 
+  const isMouseWithinVideoPlayer = useMemo(() => {
+    if (!videoPlayerContainerRef.current) return false;
+
+    const videoPlayerContainer = videoPlayerContainerRef.current;
+
+    const rect = videoPlayerContainer.getBoundingClientRect();
+
+    const isMouseWithinVideoPlayer =
+      mousePosition.x >= rect.left &&
+      mousePosition.x <= rect.right &&
+      mousePosition.y >= rect.top &&
+      mousePosition.y <= rect.bottom;
+
+    return isMouseWithinVideoPlayer;
+  }, [mousePosition]);
+
+  // track mouse position
+  useEffect(() => {
+    const mouseMoveEventListener = (e: MouseEvent) => {
+      setMousePosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+    };
+
+    window.addEventListener("mousemove", mouseMoveEventListener);
+
+    return () => {
+      window.removeEventListener("mousemove", mouseMoveEventListener);
+    };
+  }, []);
+
+  // setting many event listeners
   useEffect(() => {
     if (!ref.current) return;
 
@@ -91,6 +154,26 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
       video.addEventListener("volumechange", volumeChangeEventListener);
     };
   }, []);
+
+  const showControlsTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // hide controls after 3 seconds
+  useEffect(() => {
+    // clear previous timeout
+    if (showControlsTimeout.current) {
+      clearTimeout(showControlsTimeout.current);
+    }
+
+    showControlsTimeout.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+
+    return () => {
+      if (showControlsTimeout.current) {
+        clearTimeout(showControlsTimeout.current);
+      }
+    };
+  }, [showControls]);
 
   const play = () => {
     console.log("playing");
@@ -127,9 +210,46 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
     setVolume(volumeBeforeMute);
   };
 
+  const seek = (timeAsPercentage: number) => {
+    if (!ref.current) return;
+
+    const video = ref.current;
+
+    const time = (timeAsPercentage / 100) * video.duration;
+
+    video.currentTime = time;
+  };
+
+  const skipForwardInSeconds = (seconds: number) => {
+    if (!ref.current) return;
+
+    const video = ref.current;
+
+    video.currentTime += seconds;
+
+    if (video.currentTime > video.duration) {
+      video.currentTime = video.duration;
+    }
+  };
+
+  const skipBackwardInSeconds = (seconds: number) => {
+    if (!ref.current) return;
+
+    const video = ref.current;
+
+    video.currentTime -= seconds;
+
+    if (video.currentTime < 0) {
+      video.currentTime = 0;
+    }
+  };
+
   return (
     <div
       className="relative text-white"
+      onMouseMove={() => setShowControls(true)}
+      tabIndex={0}
+      ref={videoPlayerContainerRef}
       onKeyDown={(e) => {
         if (e.key === " ") {
           togglePlayPause();
@@ -142,8 +262,15 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
         if (e.key === "m") {
           toggleMute();
         }
+
+        if (e.key === "ArrowLeft") {
+          skipBackwardInSeconds(2);
+        }
+
+        if (e.key === "ArrowRight") {
+          skipForwardInSeconds(2);
+        }
       }}
-      tabIndex={0}
     >
       <video
         className="w-[800px] h-[500px] object-cover"
@@ -155,35 +282,96 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
         {children}
       </video>
 
-      <div className="bottom-0 absolute w-full px-4 flex flex-col gap-2">
-        <progress
-          className="w-full h-1 bg-slate-800 rounded-full mt-2"
-          value={0}
-          max={100}
-        ></progress>
+      <div
+        className="transition duration-[400ms] bottom-0 absolute w-full px-4 flex flex-col gap-2"
+        style={{
+          opacity:
+            showControls || !isPlaying || isMouseWithinVideoPlayer ? 1 : 0,
+        }}
+      >
+        <div>
+          <VideoSlider
+            className="w-full"
+            value={[(100 * currentTime) / (ref.current?.duration ?? 1)]}
+            onValueChange={(value) => seek(value[0])}
+          />
+        </div>
 
-        <div className="flex items-center mb-2">
-          {/* Play/Pause Button */}
-          <ControlButton onClick={togglePlayPause} className="mr-4">
-            {isPlaying ? <Pause /> : <Play />}
-          </ControlButton>
-
-          {/* Time Display */}
-          <div className="mr-4">
-            {formattedCurrentTime} / {formattedVideoDuration}
-          </div>
-
-          {/* Volume Slider */}
-          <div className="flex gap-2 items-center ml-2">
-            <ControlButton onClick={toggleMute}>
-              {volume > 1 ? <Volume2 /> : <Volume />}
+        <div className="flex items-center mb-2 justify-between">
+          <div className="flex items-center">
+            {/* Play/Pause Button */}
+            <ControlButton onClick={togglePlayPause} className="mr-4">
+              {isPlaying ? <Pause /> : <Play />}
             </ControlButton>
 
-            <Slider
-              className="w-20"
-              value={[volume]}
-              onValueChange={(value) => setVolume(value[0])}
-            />
+            {/* Time Display */}
+            <div className="mr-4">
+              {formattedCurrentTime} / {formattedVideoDuration}
+            </div>
+
+            {/* Volume Slider */}
+            <div className="flex gap-2 items-center ml-2">
+              <ControlButton onClick={toggleMute}>
+                {volume > 1 ? <Volume2 /> : <VolumeXIcon />}
+              </ControlButton>
+
+              <Slider
+                className="w-20"
+                value={[volume]}
+                onValueChange={(value) => setVolume(value[0])}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            {/* Seek Forward Button */}
+            <ControlButton
+              onClick={() => skipBackwardInSeconds(10)}
+              className="mr-2"
+            >
+              <span className="mr-1">-10s</span> <Rewind />
+            </ControlButton>
+
+            <ControlButton
+              onClick={() => skipForwardInSeconds(10)}
+              className="mr-2"
+            >
+              <FastForward className="mr-1" /> <span>+10s</span>
+            </ControlButton>
+
+            {/* Settings Button */}
+            <DropdownMenu>
+              <ControlButton asChild>
+                <DropdownMenuTrigger>
+                  <Settings />
+                </DropdownMenuTrigger>
+              </ControlButton>
+
+              <DropdownMenuContent side="top">
+                {/* Playback Speed */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <DropdownMenuItem>Playback Speed</DropdownMenuItem>
+                  </DropdownMenuSubTrigger>
+
+                  <DropdownMenuContent side="right">
+                    <DropdownMenuItem>0.25x</DropdownMenuItem>
+                    <DropdownMenuItem>0.5x</DropdownMenuItem>
+                    <DropdownMenuItem>0.75x</DropdownMenuItem>
+                    <DropdownMenuItem>1x</DropdownMenuItem>
+                    <DropdownMenuItem>1.25x</DropdownMenuItem>
+                    <DropdownMenuItem>1.5x</DropdownMenuItem>
+                    <DropdownMenuItem>1.75x</DropdownMenuItem>
+                    <DropdownMenuItem>2x</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenuSub>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Fullscreen Button */}
+            <ControlButton onClick={toggleFullscreen} className="mr-2">
+              <Fullscreen />
+            </ControlButton>
           </div>
         </div>
       </div>
@@ -191,13 +379,16 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
   );
 };
 
-type ControlButtonProps = HTMLAttributes<HTMLButtonElement> & {};
+type ControlButtonProps = HTMLAttributes<HTMLButtonElement> & {
+  asChild?: boolean;
+};
 
 const ControlButton = forwardRef<HTMLButtonElement, ControlButtonProps>(
   (props, ref) => {
     return (
-      <button
+      <Button
         {...props}
+        variant="icon"
         onClick={(e) => {
           e.stopPropagation();
           props.onClick?.(e);

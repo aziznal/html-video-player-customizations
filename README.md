@@ -1,3 +1,45 @@
+# HTML Video Player Customizations
+
+![The fruit of my spaghetti code](demo.png)
+
+Playing around with making custom controls for the html `<video>` player. Mostly doable but a lot of custom logic is necessary to replace the native controls, including but not limited to:
+
+- Play / Pause button and its state
+- Seek bar
+- current video time and total duration
+- Volume slider (mute/unmute was so confusing)
+- All shortcut keys (though native controls don't really have those)
+- Fullscreen
+- Settings
+- Auto-hiding and showing controls
+
+### TL;DR about below notes
+
+If you try to imitate the youtube player like I am, you're going to have to f*ck around with things quite a bit.
+
+### About Fullscreen Custom Controls
+
+It sucks hard.
+
+### About mute / unmute
+
+Stay away from using the video element's `muted` field. It's evil. Oh, also, muting the volume apparently amounts to simply setting the volume to 1 (not 0, because why would that make sense?)
+
+
+### About auto hiding and showing controls
+
+This one seems simple at the beginning, but then you realise that controls are not simply shown and hidden as the mouse has entered and left, but also depends on whether the video is paused.
+
+To add to the complexity, the mouse could be moving inside the video but if you're using it, for example, to adjust the volume slider then the move event is not emitted to the parent because obviously WHY WOULD IT. That would make things so much easier...
+
+### About the seekbar
+
+The seekbar is easy to show, but making interaction with it smooth means that whenever the user is changing it manually, it should not actually change the video's time until the user lets go of the mouse.
+
+Also, you need to implement showing the video's buffered time manually.
+
+---
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
