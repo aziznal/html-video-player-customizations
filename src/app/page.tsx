@@ -1,7 +1,8 @@
 "use client";
 
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, Volume, Volume2 } from "lucide-react";
 import {
   HTMLAttributes,
   PropsWithChildren,
@@ -27,6 +28,8 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(50);
+  const [volumeBeforeMute, setVolumeBeforeMute] = useState(50);
 
   const formattedCurrentTime = useMemo(() => {
     const hours = Math.floor(currentTime / 3600);
@@ -72,36 +75,56 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
       setCurrentTime(Math.round(video.currentTime));
     };
 
+    const volumeChangeEventListener = () => {
+      setVolume(video.volume);
+    };
+
     video.addEventListener("play", playEventListener);
     video.addEventListener("pause", pauseEventListener);
     video.addEventListener("timeupdate", timeUpdateEventListener);
+    video.addEventListener("volumechange", volumeChangeEventListener);
 
     return () => {
       video.removeEventListener("play", playEventListener);
       video.removeEventListener("pause", pauseEventListener);
       video.addEventListener("timeupdate", timeUpdateEventListener);
+      video.addEventListener("volumechange", volumeChangeEventListener);
     };
   }, []);
 
   const play = () => {
-    console.info("playing");
+    console.log("playing");
     ref.current?.play();
   };
 
   const pause = () => {
-    console.info("pausing");
+    console.log("pausing");
     ref.current?.pause();
   };
 
   const togglePlayPause = () => {
-    console.info("toggling play/pause");
+    console.log("toggling play/pause");
     isPlaying ? pause() : play();
   };
 
   const toggleFullscreen = () => {
-    ref.current?.requestFullscreen({
-      navigationUI: "hide",
-    });
+    ref.current?.requestFullscreen();
+  };
+
+  const toggleMute = () => {
+    if (!ref.current) return;
+
+    // if muting
+    if (volume > 1) {
+      console.log("muting");
+      setVolumeBeforeMute(volume);
+      setVolume(1);
+      return;
+    }
+
+    // if already muted
+    console.log("unmuting");
+    setVolume(volumeBeforeMute);
   };
 
   return (
@@ -131,14 +154,28 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
           max={100}
         ></progress>
 
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center mb-2">
           {/* Play/Pause Button */}
-          <ControlButton onClick={togglePlayPause}>
+          <ControlButton onClick={togglePlayPause} className="mr-4">
             {isPlaying ? <Pause /> : <Play />}
           </ControlButton>
 
-          <div>
+          {/* Time Display */}
+          <div className="mr-4">
             {formattedCurrentTime} / {formattedVideoDuration}
+          </div>
+
+          {/* Volume Slider */}
+          <div className="flex gap-2 items-center ml-2">
+            <ControlButton onClick={toggleMute}>
+              {volume > 1 ? <Volume2 /> : <Volume />}
+            </ControlButton>
+
+            <Slider
+              className="w-20"
+              value={[volume]}
+              onValueChange={(value) => setVolume(value[0])}
+            />
           </div>
         </div>
       </div>
@@ -152,10 +189,11 @@ const ControlButton = forwardRef<HTMLButtonElement, ControlButtonProps>(
   (props, ref) => {
     return (
       <button
-        className={cn(
-          "bg-none rounded-full flex items-center justify-center text-white transition hover:bg-slate-800 p-2"
-        )}
         {...props}
+        className={cn(
+          "bg-none rounded-full flex items-center justify-center text-white transition hover:bg-slate-800 p-2",
+          props.className
+        )}
         ref={ref}
       />
     );
