@@ -134,6 +134,14 @@ const CustomVideoPlayer = ({ children }: PropsWithChildren) => {
         if (e.key === " ") {
           togglePlayPause();
         }
+
+        if (e.key === "f") {
+          toggleFullscreen();
+        }
+
+        if (e.key === "m") {
+          toggleMute();
+        }
       }}
       tabIndex={0}
     >
@@ -190,6 +198,14 @@ const ControlButton = forwardRef<HTMLButtonElement, ControlButtonProps>(
     return (
       <button
         {...props}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onClick?.(e);
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          props.onKeyDown?.(e);
+        }}
         className={cn(
           "bg-none rounded-full flex items-center justify-center text-white transition hover:bg-slate-800 p-2",
           props.className
